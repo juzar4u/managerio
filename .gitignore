@@ -1,0 +1,11 @@
+/ManagerIO.DataModels/obj/Debug
+/ManagerIO.DataServices/bin/Debug
+/ManagerIO.DataServices/obj/Debug
+/ManagerIO/bin
+/ManagerIO/obj/Debug
+/packages/EntityFramework.5.0.0/Content
+/packages/EntityFramework.5.0.0
+/packages/Microsoft.AspNet.Mvc.4.0.20710.0
+/packages
+/SyncWebService/obj/*.gitignore
+/SyncWebService/bin/*.gitignore
