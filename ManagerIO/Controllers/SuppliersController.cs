@@ -22,7 +22,7 @@ namespace ManagerIO.Controllers
             List<Supplier> suppliers = SuppliersApiServices.Instance.getAllSuppliers(businessId);
             List<Attachment> attachments = CustomersApiServices.Instance.getAttachmentsByBusiness(businessId);
             result.Suppliers = new List<SupplierApiModel>();
-            foreach (var item in suppliers.Where(x=>x.SupplierID == 134).OrderBy(x => x.Name))
+            foreach (var item in suppliers.OrderBy(x => x.Name))
             {
                 SupplierApiModel supplierModel = new SupplierApiModel();
                 List<InvoiceSupplierModel> supplierInvoices = SupplierInvoices.Where(x => x.SupplierID == item.SupplierID).ToList();

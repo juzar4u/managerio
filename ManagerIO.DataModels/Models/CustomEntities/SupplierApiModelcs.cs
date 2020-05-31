@@ -75,13 +75,12 @@ namespace ManagerIO.DataModels.Models.CustomEntities.SupplierApiModelcs
         public string InvoiceDate { get; set; }
         [DataMember]
         public string Transection { get; set; }
-        [DataMember]
         public string BillNo { get; set; }
         public int TransectionType { get; set; }
         [DataMember]
-        public string Description { get; set; }
+        public string Supplier { get; set; }
         [DataMember]
-        public string Contact { get; set; }
+        public string Description { get; set; }
         [DataMember]
         public string Amount { get; set; }
         [DataMember]

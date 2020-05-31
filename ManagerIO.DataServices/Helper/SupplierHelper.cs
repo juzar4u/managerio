@@ -48,10 +48,10 @@ namespace ManagerIO.DataServices.Helper
                     invoiceModel.IsAttachment = attachments.Where(x => x.InnerObjectKey == invoice.InvoiceKey).ToList().Count > 0 ? true : false;
                     receivableModel.Date = invoice.IssueDate;
                     receivableModel.InvoiceDate = invoice.IssueDate.ToString("dd/MM/yyyy");
-                    receivableModel.Transection = "Purchase Invoice";
-                    receivableModel.TransectionType = receivableModel.Transection.Contains("Purchase Invoice") ? (int)TransectionTypeEnum.Payment : (int)TransectionTypeEnum.Receipt;
+                    receivableModel.Transection = string.IsNullOrEmpty(invoice.InvoiceBillNo) ? "Purchase Invoice" : string.Format("Purchase Invoice — {0}", invoice.InvoiceBillNo);
+                    receivableModel.TransectionType = receivableModel.Transection.Contains("Purchase Invoice") ? (int)TransectionTypeEnum.Receipt : (int)TransectionTypeEnum.Payment;
                     receivableModel.Description = invoice.InvoiceSummary;
-                    receivableModel.Contact = invoice.SupplierName;
+                    receivableModel.Supplier = invoice.SupplierName;
                     receivableModel.BillNo = !string.IsNullOrEmpty(invoice.InvoiceBillNo) ? invoice.InvoiceBillNo : string.Empty;
                     if (invoice.Qty > 0)
                         amount = invoice.Qty * invoice.Amount;
@@ -100,8 +100,8 @@ namespace ManagerIO.DataServices.Helper
                         receivableModel.Transection = transection.TransectionType == (int)TransectionTypeEnum.Receipt ? "Receipt" : "Payment";
                         receivableModel.TransectionType = receivableModel.Transection == "Receipt" ? (int)TransectionTypeEnum.Receipt : (int)TransectionTypeEnum.Payment;
                     }
-                    receivableModel.Description = string.IsNullOrEmpty(transection.ReceiptPaymentName) ? string.Empty : transection.ReceiptPaymentName;
-                    receivableModel.Contact = transection.Payee;
+                    receivableModel.Description = string.IsNullOrEmpty(transection.Description) ? string.Empty : transection.Description;
+                    receivableModel.Supplier = transection.Payee;
                     receivableModel.BillNo = !string.IsNullOrEmpty(transection.Reference) ? transection.Reference : string.Empty;
                     if (transection.Amount.ToString().Contains('-') && transection.TransectionType == (int)TransectionTypeEnum.Payment)
                     {
@@ -119,7 +119,7 @@ namespace ManagerIO.DataServices.Helper
                     
                     accountReceivableModel.Invoices.Add(receivableModel);
                 }
-                foreach (var receivables in accountReceivableModel.Invoices.OrderBy(x => x.Date).ThenBy(x => x.TransectionType).ThenBy(x => x.BillNo))
+                foreach (var receivables in accountReceivableModel.Invoices.OrderBy(x => x.Date).ThenByDescending(x => x.TransectionType).ThenBy(x => x.BillNo))
                 {
                     bool isPayment = receivables.Amount.Contains('-') ? true : false;
                     if (isPayment)
@@ -129,84 +129,95 @@ namespace ManagerIO.DataServices.Helper
 
                     receivables.Balance = balance;
                 }
-                
+
+                bool IsAccountClear = supplierTransections.Select(x => x.Amount).Sum() - countListModel.Invoices.Select(x => x.InvoiceTotal).Sum() == 0 ? true : false;
+
                 decimal receivableCase2 = 0;
                 bool IsSubtracted = false;
                 receivableCase2 = supplierTransections.Where(x => string.IsNullOrEmpty(x.InvoiceKey)).Select(x => x.Amount).Sum();
+
                 foreach (var invoice in countListModel.Invoices.OrderBy(x => x.Date))
                 {
                     decimal receivableCase1 = 0;
                     bool isReceived = false;
-                    if (supplierTransections.Count > 0)
+                    if (!IsAccountClear)
                     {
-                        List<TransectionSupplierModel> transections = supplierTransections.Where(x => x.InvoiceKey == invoice.InvoiceKey).ToList();
-                        foreach (var item in transections)
+                        if (supplierTransections.Count > 0)
                         {
-                            if (item.TransectionType == (int)TransectionTypeEnum.Payment)
-                                receivableCase1 += item.Amount;
-                            else
-                                receivableCase1 -= item.Amount;
-                        }
-                        if (receivableCase1 > 0)
-                        {
-                            isReceived = true;
-                            invoice.BalanceDue = invoice.InvoiceTotal - receivableCase1;
-                            invoice.Status = invoice.BalanceDue == 0 ? "Paid in full" : string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
-                        }
-                        else if (receivableCase2 > 0)
-                        {
-                            if (receivableCase2 > invoice.InvoiceTotal)
+                            List<TransectionSupplierModel> transections = supplierTransections.Where(x => x.InvoiceKey == invoice.InvoiceKey).ToList();
+                            foreach (var item in transections)
+                            {
+                                if (item.TransectionType == (int)TransectionTypeEnum.Payment)
+                                    receivableCase1 += item.Amount;
+                                else
+                                    receivableCase1 -= item.Amount;
+                            }
+                            if (receivableCase1 > 0)
+                            {
+                                isReceived = true;
+                                invoice.BalanceDue = invoice.InvoiceTotal - receivableCase1;
+                                invoice.Status = invoice.BalanceDue == 0 ? "Paid in full" : string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                            }
+                            else if (receivableCase2 > 0)
+                            {
+                                if (receivableCase2 > invoice.InvoiceTotal)
+                                {
+                                    invoice.BalanceDue = 0;
+                                    invoice.Status = "Paid in full";
+                                }
+                                else
+                                {
+                                    invoice.BalanceDue = invoice.InvoiceTotal - receivableCase2;
+                                    invoice.Status = invoice.BalanceDue == 0 ? "Paid in full" : string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                                }
+                            }
+                            else if (receivableCase2 < 0)
+                            {
+                                if (IsSubtracted == false)
+                                {
+                                    IsSubtracted = true;
+                                    invoice.BalanceDue = invoice.InvoiceTotal - System.Math.Abs(receivableCase2);
+                                    invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                                }
+                                else
+                                {
+                                    invoice.BalanceDue = invoice.InvoiceTotal;
+                                    invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                                }
+                            }
+                            else if (receivableCase2 == 0 && receivableCase1 == 0)
+                            {
+                                IsSubtracted = true;
+                                invoice.BalanceDue = invoice.InvoiceTotal;
+                                invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                            }
+                            else if (receivableCase2 == 0 && supplierTransections.Where(x => string.IsNullOrEmpty(x.InvoiceKey)).ToList().Count > 0)
                             {
                                 invoice.BalanceDue = 0;
                                 invoice.Status = "Paid in full";
                             }
-                            else
+                            if (supplierTransections.Where(x => string.IsNullOrEmpty(x.InvoiceKey)).ToList().Count > 0 && isReceived == false)
                             {
-                                invoice.BalanceDue = invoice.InvoiceTotal - receivableCase2;
-                                invoice.Status = invoice.BalanceDue == 0 ? "Paid in full" : string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                                if (receivableCase2 > invoice.InvoiceTotal)
+                                {
+                                    receivableCase2 -= invoice.InvoiceTotal;
+                                }
+                                else
+                                {
+                                    receivableCase2 = 0;
+                                }
                             }
                         }
-                        else if (receivableCase2 < 0)
+                        else
                         {
-                            if (IsSubtracted == false)
-                            {
-                                IsSubtracted = true;
-                                invoice.BalanceDue = invoice.InvoiceTotal - System.Math.Abs(receivableCase2);
-                                invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
-                            }
-                            else
-                            {
-                                invoice.BalanceDue = invoice.InvoiceTotal;
-                                invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
-                            }
-                        }
-                        else if (receivableCase2 == 0 && receivableCase1 == 0)
-                        {
-                            IsSubtracted = true;
                             invoice.BalanceDue = invoice.InvoiceTotal;
                             invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
-                        }
-                        else if (receivableCase2 == 0 && supplierTransections.Where(x => string.IsNullOrEmpty(x.InvoiceKey)).ToList().Count > 0)
-                        {
-                            invoice.BalanceDue = 0;
-                            invoice.Status = "Paid in full";
-                        }
-                        if (supplierTransections.Where(x => string.IsNullOrEmpty(x.InvoiceKey)).ToList().Count > 0 && isReceived == false)
-                        {
-                            if (receivableCase2 > invoice.InvoiceTotal)
-                            {
-                                receivableCase2 -= invoice.InvoiceTotal;
-                            }
-                            else
-                            {
-                                receivableCase2 = 0;
-                            }
                         }
                     }
                     else
                     {
-                        invoice.BalanceDue = invoice.InvoiceTotal;
-                        invoice.Status = string.Format("{0} days overdue", Math.Round((DateTime.Now - invoice.Date).TotalDays));
+                        invoice.BalanceDue = 0;
+                        invoice.Status = "Paid in full";
                     }
                 }
                 //if (countListModel.Invoices.OrderByDescending(x => x.Date).FirstOrDefault().BalanceDue == 0 && countListModel.Invoices.Where(x => x.BalanceDue > 0).ToList().Count > 0)
@@ -214,13 +225,15 @@ namespace ManagerIO.DataServices.Helper
                    //countListModel.Invoices = countListModel.Invoices.OrderByDescending(x => x.BalanceDue).ThenByDescending(x => x.Date).ToList();
                 //else
                 //    countListModel.Invoices = countListModel.Invoices.OrderByDescending(x => x.Date).ThenByDescending(x => x.InvoiceNo).ThenByDescending(x => x.BalanceDue).ToList();
-                   List<InvoiceModel> ProcessedInvoices = new List<InvoiceModel>();
-                //processedList.AddRange(countListModel.Invoices.Where(x=>x.)
+                List<InvoiceModel> ProcessedInvoices = new List<InvoiceModel>();
+                ProcessedInvoices.AddRange(countListModel.Invoices.Where(x => x.BalanceDue > 0).OrderByDescending(x => x.Date).ToList());
+                ProcessedInvoices.AddRange(countListModel.Invoices.Where(x => x.BalanceDue <= 0).OrderByDescending(x => x.Date).ToList());
+                countListModel.Invoices = ProcessedInvoices;
                 countListModel.BalanceTotal = countListModel.InvoiceTotal - totalReceivable;
                 accountReceivableModel.BalanceAmount = countListModel.BalanceTotal;
                 model.AccountPayable = countListModel.BalanceTotal;
                 model.SupplierInvoices.Add(countListModel);
-                accountReceivableModel.Invoices = accountReceivableModel.Invoices.OrderBy(x => x.Date).ThenBy(x => x.TransectionType).ThenBy(x => x.BillNo).ToList();
+                accountReceivableModel.Invoices = accountReceivableModel.Invoices.OrderBy(x => x.Date).ThenByDescending(x => x.TransectionType).ThenBy(x => x.BillNo).ToList();
                 accountReceivableModel.Invoices.Reverse();
                 model.SupplierReceivableInvoices.Add(accountReceivableModel);
             }
