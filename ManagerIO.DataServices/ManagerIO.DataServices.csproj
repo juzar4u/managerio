@@ -44,12 +44,14 @@
     <Compile Include="Helper\Constants.cs" />
     <Compile Include="Helper\CustomerHelper.cs" />
     <Compile Include="Helper\FetchApiHelper.cs" />
+    <Compile Include="Helper\InvoiceHelper.cs" />
     <Compile Include="Helper\SupplierHelper.cs" />
     <Compile Include="Helper\SyncApiHelper.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Services\CustomersApiServices.cs" />
     <Compile Include="Services\FetchApiService.cs" />
     <Compile Include="Services\GetApiServices.cs" />
+    <Compile Include="Services\InvoiceApiServices.cs" />
     <Compile Include="Services\SuppliersApiServices.cs" />
     <Compile Include="Services\SyncApiService.cs" />
   </ItemGroup>

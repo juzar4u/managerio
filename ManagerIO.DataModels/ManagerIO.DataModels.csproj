@@ -44,6 +44,7 @@
     <Compile Include="Class1.cs" />
     <Compile Include="Models\CustomEntities\ApiModels.cs" />
     <Compile Include="Models\CustomEntities\FetchApiModels.cs" />
+    <Compile Include="Models\CustomEntities\InvoiceApiModel.cs" />
     <Compile Include="Models\CustomEntities\SupplierApiModelcs.cs" />
     <Compile Include="Models\CustomEntities\SyncApiModels.cs" />
     <Compile Include="Models\Enumerations\DiscountTypeEnumcs.cs" />
